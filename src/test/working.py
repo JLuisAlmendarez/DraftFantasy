@@ -5,7 +5,7 @@ import requests
 import numpy as np
 
 # Configuración de la API
-API_URL = "http://backend:8000"  # Cambia en producción
+API_URL = "http://localhost:8000"  # Cambia en producción
 
 def optimize_lineup(team_list):
     """
@@ -107,7 +107,7 @@ def get_ml_recommendation(available_df, drafted_players, my_team):
 def load_data():
     """Carga y prepara los datos desde el CSV"""
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    CSV_PATH = os.path.join(BASE_DIR, "/app/data/df.csv")
+    CSV_PATH = os.path.join(BASE_DIR, "../data/df.csv")
     
     if not os.path.exists(CSV_PATH):
         st.error(f"❌ No se encontró el archivo CSV en: {CSV_PATH}")
@@ -349,6 +349,7 @@ with tab1:
                  
     elif st.session_state.draft_state['finished']:
         st.success("🎉 Draft Completed!")
+        st.balloons()
 
     st.write("---")
     st.subheader("📜 Draft Feed")
@@ -371,263 +372,133 @@ with tab1:
             use_container_width=True
         )
 
-# REEMPLAZA DESDE LA LÍNEA ~280 (Tab 2) HASTA EL FINAL
-
 with tab2:
-    st.header("📋 Lineup Optimizer")
+    st.header("Lineup Optimizer")
     
     my_team = st.session_state.draft_state['my_team']
     
     if not my_team:
-        st.warning("⚠️ No has drafteado jugadores aún. Ve al Draft Room.")
+        st.warning("You haven't drafted any players yet. Go to the Draft Room.")
     else:
-        st.write(f"**Total de jugadores en roster:** {len(my_team)}")
+        st.write(f"Total Players on Roster: {len(my_team)}")
         
         col_opt1, col_opt2 = st.columns([1, 4])
         with col_opt1:
-            optimize_btn = st.button("🚀 Optimizar Lineup")
+            optimize_btn = st.button("🚀 Optimize Lineup")
             
-        # SIEMPRE optimizar (no solo cuando se presiona botón)
         starters, bench = optimize_lineup(my_team)
         
-        # Validar que starters tenga datos
-        if not starters:
-            st.warning("No hay suficientes jugadores para formar un lineup completo.")
-        else:
-            # Calcular puntos totales proyectados
-            total_proj = sum([p.get('FPTS', 0) for p in starters])
+        # Calculo de puntos totales (FPTS)
+        total_proj = sum([p['FPTS'] for p in starters])
+        
+        st.metric(label="Projected Total Points", value=f"{total_proj} pts")
+        
+        col1, col2 = st.columns(2)
+        
+        # Función auxiliar para formatear tablas
+        def format_optimizer_table(data_list):
+            if not data_list:
+                return pd.DataFrame()
+            temp_df = pd.DataFrame(data_list)
+            # Asegurar que existan las columnas, si no, rellenar
+            if 'FPTS/G' not in temp_df.columns:
+                 temp_df['FPTS/G'] = 0
             
-            st.metric(label="🎯 Puntos Proyectados Totales", value=f"{total_proj:.1f} pts")
-            
-            col1, col2 = st.columns(2)
-            
-            # Función auxiliar para formatear tablas
-            def format_optimizer_table(data_list):
-                if not data_list:
-                    return pd.DataFrame()
-                
-                formatted_data = []
-                for p in data_list:
-                    formatted_data.append({
-                        'Position': p.get('Position', 'N/A'),
-                        'Player': p.get('Player', 'Unknown'),
-                        'Proj': round(p.get('FPTS', 0), 1),
-                        'Proj/G': round(p.get('FPTS/G', 0), 2)
-                    })
-                
-                return pd.DataFrame(formatted_data)
+            # Seleccionar y renombrar
+            final_df = temp_df[['Position', 'Player', 'FPTS', 'FPTS/G']].copy()
+            final_df = final_df.rename(columns={
+                'FPTS': 'Proj',
+                'FPTS/G': 'Proj/G'
+            })
+            return final_df
 
-            with col1:
-                st.subheader("⭐ Starting Lineup")
+        with col1:
+            st.subheader("Starting Lineup (9)")
+            if optimize_btn or True: 
                 df_starters = format_optimizer_table(starters)
-                if not df_starters.empty:
-                    st.dataframe(df_starters, hide_index=True, use_container_width=True)
-                else:
-                    st.info("No hay titulares disponibles")
-                    
-            with col2:
-                st.subheader("💺 Banca")
-                if bench:
-                    df_bench = format_optimizer_table(bench)
-                    st.dataframe(df_bench, hide_index=True, use_container_width=True)
-                else:
-                    st.info("No hay jugadores en banca")
-        
-        # BONUS: Mostrar composición del roster
-        st.write("---")
-        st.subheader("📊 Composición del Roster")
-        
-        if my_team:
-            position_counts = {}
-            for p in my_team:
-                pos = p.get('Position', 'Unknown')
-                position_counts[pos] = position_counts.get(pos, 0) + 1
-            
-            col_a, col_b, col_c, col_d = st.columns(4)
-            cols = [col_a, col_b, col_c, col_d]
-            
-            for idx, (pos, count) in enumerate(position_counts.items()):
-                with cols[idx % 4]:
-                    st.metric(label=pos, value=count)
+                st.dataframe(df_starters, hide_index=True)
+                
+        with col2:
+            st.subheader("Bench (5)")
+            if bench:
+                df_bench = format_optimizer_table(bench)
+                st.dataframe(df_bench, hide_index=True)
+            else:
+                st.write("No players on bench.")
 
 # --- TAB 3: TRADE ANALYZER ---
 with tab3:
     st.header("⚖️ Trade Analyzer")
-    st.write("Selecciona jugadores para intercambiar y recibir para ver si el trade es justo.")
+    st.write("Select players to trade away and receive to see if it's fair.")
     
-    my_team = st.session_state.draft_state['my_team']
+    my_players = [p['Player'] for p in st.session_state.draft_state['my_team']]
+    all_players = df['Player'].tolist()
+    others_players = [p for p in all_players if p not in my_players]
     
-    if not my_team:
-        st.warning("⚠️ Necesitas tener jugadores en tu roster primero. Ve al Draft Room.")
-    else:
-        # Obtener jugadores del usuario
-        my_players = [p.get('Player', 'Unknown') for p in my_team if p.get('Player')]
+    col_give, col_get = st.columns(2)
+    
+    with col_give:
+        st.subheader("You Give 📤")
+        give_picks = st.multiselect("Select your players:", my_players)
         
-        # Obtener todos los jugadores disponibles (excluir los del usuario)
-        drafted_players = st.session_state.draft_state['drafted_players']
+    with col_get:
+        st.subheader("You Receive 📥")
+        get_picks = st.multiselect("Select players to acquire:", others_players)
         
-        # Filtrar jugadores de otros equipos (drafteados pero no míos)
-        others_players = []
-        for player_name in drafted_players:
-            if player_name not in my_players:
-                others_players.append(player_name)
+    if give_picks and get_picks:
+        # Calcular valores con FPTS
+        val_give = df[df['Player'].isin(give_picks)]['FPTS'].sum()
+        val_get = df[df['Player'].isin(get_picks)]['FPTS'].sum()
         
-        if not others_players:
-            st.info("⏳ Aún no hay suficientes jugadores drafteados por otros equipos para hacer trades.")
+        diff = val_get - val_give
+        
+        st.write("---")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Giving Value", f"{val_give} pts")
+        c2.metric("Receiving Value", f"{val_get} pts")
+        c3.metric("Net Difference", f"{diff:+.2f} pts", delta_color="normal")
+        
+        st.subheader("Verdict:")
+        if diff > 20:
+            st.success("🔥 YOU'RE ROBBING THEM! (Huge Win)")
+            st.balloons()
+        elif diff > 5:
+            st.success("✅ Good Trade (You win slightly)")
+        elif diff >= -5:
+            st.info("⚖️ Fair Trade")
+        elif diff >= -20:
+            st.warning("⚠️ You're losing value")
         else:
-            col_give, col_get = st.columns(2)
-            
-            with col_give:
-                st.subheader("📤 Tú Das")
-                give_picks = st.multiselect(
-                    "Selecciona tus jugadores:", 
-                    my_players,
-                    key="trade_give"
-                )
-                
-            with col_get:
-                st.subheader("📥 Tú Recibes")
-                get_picks = st.multiselect(
-                    "Selecciona jugadores a adquirir:", 
-                    others_players,
-                    key="trade_get"
-                )
-                
-            if give_picks and get_picks:
-                # Calcular valores usando FPTS del DataFrame original
-                val_give = 0
-                val_get = 0
-                
-                # Valor de lo que das
-                for player in give_picks:
-                    player_data = df[df['Player'] == player]
-                    if not player_data.empty:
-                        val_give += player_data.iloc[0].get('FPTS', 0)
-                
-                # Valor de lo que recibes
-                for player in get_picks:
-                    player_data = df[df['Player'] == player]
-                    if not player_data.empty:
-                        val_get += player_data.iloc[0].get('FPTS', 0)
-                
-                diff = val_get - val_give
-                
-                st.write("---")
-                c1, c2, c3 = st.columns(3)
-                c1.metric("💸 Valor que Das", f"{val_give:.1f} pts")
-                c2.metric("💰 Valor que Recibes", f"{val_get:.1f} pts")
-                
-                # Color del delta según si ganas o pierdes
-                delta_color = "normal" if diff >= 0 else "inverse"
-                c3.metric(
-                    "📊 Diferencia Neta", 
-                    f"{diff:+.1f} pts", 
-                    delta_color=delta_color
-                )
-                
-                st.subheader("🎯 Veredicto:")
-                if diff > 20:
-                    st.success("🔥 ¡LES ESTÁS ROBANDO! (Victoria Enorme)")
-                elif diff > 5:
-                    st.success("✅ Buen Trade (Ganas ligeramente)")
-                elif diff >= -5:
-                    st.info("⚖️ Trade Justo")
-                elif diff >= -20:
-                    st.warning("⚠️ Estás perdiendo valor")
-                else:
-                    st.error("🚨 ¡TE ESTÁN ROBANDO! (Mal Trade)")
-                    
-                # BONUS: Detalles de jugadores
-                with st.expander("🔍 Ver detalles de jugadores"):
-                    col_det1, col_det2 = st.columns(2)
-                    
-                    with col_det1:
-                        st.write("**Jugadores que das:**")
-                        for player in give_picks:
-                            player_data = df[df['Player'] == player]
-                            if not player_data.empty:
-                                p = player_data.iloc[0]
-                                st.write(f"- **{p['Player']}** ({p['Position']}) - {p.get('FPTS', 0):.1f} pts")
-                    
-                    with col_det2:
-                        st.write("**Jugadores que recibes:**")
-                        for player in get_picks:
-                            player_data = df[df['Player'] == player]
-                            if not player_data.empty:
-                                p = player_data.iloc[0]
-                                st.write(f"- **{p['Player']}** ({p['Position']}) - {p.get('FPTS', 0):.1f} pts")
-                
-            else:
-                st.info("👆 Selecciona jugadores en ambos lados para analizar el trade.")
+            st.error("🚨 THEY'RE ROBBING YOU! (Bad Trade)")
+    else:
+        st.info("Select players on both sides to analyze.")
 
 # --- TAB 4: POWER RANKINGS ---
 with tab4:
     st.header("🏆 Power Rankings")
-    st.write("Puntos proyectados totales por equipo.")
+    st.write("Total projected points per team.")
     
     draft_log = st.session_state.draft_state['draft_log']
     
     if not draft_log:
-        st.warning("⏳ El draft aún no ha comenzado.")
+        st.warning("Draft hasn't started yet.")
     else:
-        rankings = calculate_power_rankings(
-            draft_log, 
-            st.session_state.draft_state['total_teams']
-        )
+        rankings = calculate_power_rankings(draft_log, st.session_state.draft_state['total_teams'])
         
         if not rankings.empty:
-            # Agregar posición de ranking
-            rankings['Rank'] = range(1, len(rankings) + 1)
-            
-            # Reordenar columnas
-            rankings_display = rankings[['Rank', 'team', 'fpts']].rename(columns={
-                'team': 'Equipo', 
-                'fpts': 'Puntos Proyectados'
-            })
-            
-            # Destacar "My Team"
-            def highlight_my_team(row):
-                if row['Equipo'] == 'My Team':
-                    return ['background-color: #90EE90'] * len(row)
-                return [''] * len(row)
+            rankings_display = rankings.rename(columns={'team': 'Team', 'fpts': 'Total Proj Points'})
             
             st.dataframe(
-                rankings_display.style.apply(highlight_my_team, axis=1),
+                rankings_display,
                 column_config={
-                    "Puntos Proyectados": st.column_config.NumberColumn(
-                        "Puntos Proyectados",
-                        format="%.1f pts"
-                    ),
-                    "Rank": st.column_config.NumberColumn(
-                        "Rank",
-                        format="%d"
+                    "Total Proj Points": st.column_config.NumberColumn(
+                        "Total FPTS",
+                        format="%.0f"
                     )
                 },
                 hide_index=True,
                 use_container_width=True
             )
-            
-            # Estadísticas adicionales
-            st.write("---")
-            st.subheader("📈 Estadísticas del Draft")
-            
-            col_stat1, col_stat2, col_stat3 = st.columns(3)
-            
-            with col_stat1:
-                avg_points = rankings['fpts'].mean()
-                st.metric("Promedio de Puntos", f"{avg_points:.1f}")
-            
-            with col_stat2:
-                my_team_rank = rankings[rankings['team'] == 'My Team']
-                if not my_team_rank.empty:
-                    my_rank = (rankings['team'] == 'My Team').idxmax() + 1
-                    st.metric("Tu Posición", f"#{my_rank}")
-                else:
-                    st.metric("Tu Posición", "N/A")
-            
-            with col_stat3:
-                total_picks = len(draft_log)
-                st.metric("Picks Totales", total_picks)
-                
         else:
-            st.info("⏳ Esperando picks...")
+            st.write("Waiting for picks...")
+

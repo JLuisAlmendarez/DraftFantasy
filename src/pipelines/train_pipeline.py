@@ -110,6 +110,12 @@ def preprocess_data():
     X_train = preprocessor.fit_transform(X_train_df)
     X_test = preprocessor.transform(X_test_df)
 
+    preprocessor_path = "artifacts/preprocessors/preprocessor.pkl"
+    os.makedirs(os.path.dirname(preprocessor_path), exist_ok=True)
+
+    with open(preprocessor_path, 'wb') as f:
+        pickle.dump(preprocessor, f)
+
     return X_train, X_test, y_train, y_test
 
 def objective(trial, X_train, y_train, X_test, y_test):

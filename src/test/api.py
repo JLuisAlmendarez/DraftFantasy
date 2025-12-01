@@ -66,7 +66,7 @@ model = get_best_model(MODEL_NAME)
 print("✅ Modelo cargado exitosamente")
 
 # Cargar preprocessor
-PREPROCESSOR_PATH = "/app/preprocessors/preprocessor.pkl"
+PREPROCESSOR_PATH = "preprocessor.pkl"
 
 def load_preprocessor():
     """Carga el preprocessor guardado"""
@@ -76,6 +76,7 @@ def load_preprocessor():
     else:
         raise FileNotFoundError(
             f"❌ Preprocessor no encontrado en '{PREPROCESSOR_PATH}'. "
+            "Debes ejecutar save_preprocessor.py primero."
         )
 
 try:

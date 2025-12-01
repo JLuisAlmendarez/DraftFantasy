@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY frontend/app.py ./app.py
 
-COPY requirements.txt ./requirements.txt
+COPY frontend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8501

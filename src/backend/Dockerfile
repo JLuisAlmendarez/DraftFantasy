@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY backend/api.py ./api.py
 
-COPY requirements.txt ./requirements.txt
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
