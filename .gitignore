@@ -1,0 +1,26 @@
+# Entornos virtuales
+.venv/
+venv/
+
+# Variables de entorno
+.env
+.env.*
+
+# Archivos de datos
+*.csv
+*.pkl
+*.parquet
+
+
+# Archivos de Jupyter
+.ipynb_checkpoints/
+
+# Archivos generados
+__pycache__/
+*.pyc
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
