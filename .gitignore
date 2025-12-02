@@ -6,12 +6,6 @@ venv/
 .env
 .env.*
 
-# Archivos de datos
-*.csv
-*.pkl
-*.parquet
-
-
 # Archivos de Jupyter
 .ipynb_checkpoints/
 
